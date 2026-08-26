@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Deck</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --ink:#14181F; --ink-2:#0F1319; --panel:#1C222C; --panel-2:#232A36;
+    --paper:#EDE6D6; --paper-2:#E3DAC4; --brass:#B8874A; --brass-light:#D9AE74;
+    --slate:#8B93A1; --slate-dim:#5C6472; --signal:#6FA98A; --danger:#C1666B;
+    --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{ margin:0; font-family:var(--sans); background:var(--ink); color:var(--paper); -webkit-font-smoothing:antialiased; }
+  #app{min-height:100vh;display:flex;flex-direction:column;}
+  button{font-family:inherit;cursor:pointer;}
+  input,textarea{font-family:inherit;}
+  ::selection{background:var(--brass); color:var(--ink);}
+  ::-webkit-scrollbar{width:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--panel-2); border-radius:6px;}
+
+  .center-wrap{ flex:1; display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(ellipse at 50% 30%, rgba(184,135,74,0.08), transparent 60%), var(--ink); }
+  .center-card{ display:flex; flex-direction:column; align-items:center; gap:22px; padding:20px; width:340px; max-width:90vw; }
+  .dial{ width:150px; height:150px; }
+  .dial-tick{ stroke:var(--slate-dim); stroke-width:2; }
+  .dial-tick.major{ stroke:var(--brass); stroke-width:3; }
+  .dial-ring{ fill:none; stroke:var(--panel-2); stroke-width:1.5; }
+  .dial-needle{ stroke:var(--brass-light); stroke-width:3; stroke-linecap:round; transform-origin:75px 75px; transition:transform .6s cubic-bezier(.2,.8,.2,1);}
+  .dial-center{ fill:var(--brass); }
+  .lock-title{ font-family:var(--serif); font-size:22px; letter-spacing:.04em; color:var(--paper); margin:0; }
+  .lock-sub{ color:var(--slate); font-size:13px; margin:0; text-align:center; line-height:1.6; }
+  .passcode-input{
+    width:100%; background:var(--panel); border:1px solid var(--panel-2); color:var(--brass-light);
+    padding:14px 16px; border-radius:9px; font-size:18px; letter-spacing:.05em; outline:none; text-align:center;
+    font-family:var(--serif);
+  }
+  .passcode-input:focus{ border-color:var(--brass); }
+  .enter-btn{ width:100%; background:var(--brass); color:var(--ink); border:none; font-weight:600;
+    padding:13px; border-radius:9px; font-size:14px; }
+  .enter-btn:hover{ background:var(--brass-light); }
+  .enter-btn:disabled{ opacity:.5; }
+  .lock-error{ color:var(--danger); font-size:13px; min-height:16px; text-align:center; }
+  .lock-hint{ color:var(--slate-dim); font-size:11.5px; text-align:center; line-height:1.5; }
+  .spinner{ width:34px; height:34px; border-radius:50%; border:3px solid var(--panel-2); border-top-color:var(--brass); animation:spin 0.8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; padding:18px 28px;
+    border-bottom:1px solid var(--panel-2); background:var(--ink-2); }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-name{ font-family:var(--serif); font-size:18px; letter-spacing:.03em; }
+  .sync-pill{ font-size:11px; color:var(--slate); display:flex; align-items:center; gap:6px; }
+  .sync-dot{ width:7px; height:7px; border-radius:50%; background:var(--signal); }
+  .sync-dot.saving{ background:var(--brass); }
+  .sync-dot.error{ background:var(--danger); }
+  .icon-btn{ background:transparent; border:1px solid var(--panel-2); color:var(--slate);
+    width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:.15s; }
+  .icon-btn:hover{ border-color:var(--brass); color:var(--brass-light); }
+  .topbar-actions{ display:flex; gap:8px; align-items:center; }
+
+  .dashboard{ flex:1; padding:40px 28px; max-width:960px; margin:0 auto; width:100%; }
+  .dash-heading{ font-family:var(--serif); font-size:28px; margin:0 0 6px; }
+  .dash-sub{ color:var(--slate); font-size:14px; margin:0 0 34px; }
+  .class-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px; }
+  .class-card{ background:var(--panel); border:1px solid var(--panel-2); border-radius:4px 12px 12px 4px;
+    padding:22px 20px; position:relative; cursor:pointer; transition:.18s; border-left:4px solid var(--brass); }
+  .class-card:hover{ background:var(--panel-2); transform:translateY(-2px); }
+  .class-index{ font-family:var(--serif); color:var(--slate-dim); font-size:12px; letter-spacing:.1em; text-transform:uppercase; }
+  .class-name{ font-family:var(--serif); font-size:19px; margin:8px 0 4px; color:var(--paper);
+    background:transparent; border:none; outline:none; width:100%; padding:0; }
+  .class-name:focus{ color:var(--brass-light); }
+  .class-meta{ color:var(--slate); font-size:12px; }
+  .rename-hint{ position:absolute; top:16px; right:16px; color:var(--slate-dim); font-size:10px; opacity:0; transition:.15s;}
+  .class-card:hover .rename-hint{ opacity:1; }
+
+  .workspace{ flex:1; display:flex; flex-direction:column; }
+  .ws-header{ display:flex; align-items:center; gap:14px; padding:16px 24px; border-bottom:1px solid var(--panel-2); background:var(--ink-2); }
+  .back-btn{ background:transparent; border:none; color:var(--slate); font-size:14px; display:flex; align-items:center; gap:6px; }
+  .back-btn:hover{ color:var(--brass-light); }
+  .ws-title{ font-family:var(--serif); font-size:20px; margin:0; }
+  .tabs{ display:flex; gap:4px; margin-left:auto; background:var(--panel); border-radius:8px; padding:4px; }
+  .tab-btn{ background:transparent; border:none; color:var(--slate); font-size:13px; padding:7px 16px; border-radius:6px; transition:.15s; }
+  .tab-btn.active{ background:var(--brass); color:var(--ink); font-weight:600; }
+  .ws-body{ flex:1; display:flex; overflow:hidden; }
+
+  .notes-pane{ flex:1; display:flex; padding:24px; gap:20px; overflow:hidden; }
+  .notes-editor-wrap{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .notes-editor{ flex:1; resize:none; border:none; outline:none; background:var(--paper); color:#241F14;
+    font-family:var(--serif); font-size:16px; line-height:1.7; padding:36px 40px; border-radius:6px; box-shadow:0 8px 30px rgba(0,0,0,0.35); }
+  .notes-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes-status{ color:var(--slate-dim); font-size:12px; }
+  .ask-btn{ background:var(--brass); color:var(--ink); border:none; font-weight:600; padding:9px 18px; border-radius:7px; font-size:13px; display:flex; align-items:center; gap:8px; }
+  .ask-btn:hover{ background:var(--brass-light); }
+  .ask-btn:disabled{ opacity:.5; cursor:default; }
+  .suggestion-panel{ width:340px; background:var(--panel); border:1px solid var(--panel-2); border-radius:10px; padding:20px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+  .suggestion-title{ font-family:var(--serif); font-size:14px; color:var(--brass-light); margin:0; letter-spacing:.02em;}
+  .suggestion-text{ font-size:13.5px; line-height:1.6; color:var(--paper); white-space:pre-wrap; }
+  .suggestion-actions{ display:flex; gap:8px; margin-top:auto; }
+  .mini-btn{ flex:1; background:var(--panel-2); border:1px solid var(--panel-2); color:var(--slate); padding:8px; border-radius:6px; font-size:12px; }
+  .mini-btn.primary{ background:var(--signal); color:var(--ink); border-color:var(--signal); font-weight:600; }
+  .empty-suggestion{ color:var(--slate-dim); font-size:13px; text-align:center; margin-top:40px; }
+
+  .chat-pane{ flex:1; display:flex; flex-direction:column; }
+  .chat-messages{ flex:1; overflow-y:auto; padding:26px 26px 10px; display:flex; flex-direction:column; gap:16px; }
+  .msg{ max-width:72%; padding:12px 16px; border-radius:12px; font-size:14px; line-height:1.55; }
+  .msg.user{ align-self:flex-end; background:var(--brass); color:var(--ink); border-bottom-right-radius:3px; }
+  .msg.assistant{ align-self:flex-start; background:var(--panel); border:1px solid var(--panel-2); border-bottom-left-radius:3px; }
+  .msg.system-note{ align-self:center; color:var(--slate-dim); font-size:12px; background:none; }
+  .msg-img{ max-width:220px; border-radius:8px; display:block; margin-top:8px; }
+  .msg-file{ font-size:12px; color:var(--slate-dim); margin-top:6px; }
+  .typing{ align-self:flex-start; color:var(--slate-dim); font-size:13px; padding:0 16px; }
+  .chat-input-row{ display:flex; align-items:flex-end; gap:10px; padding:16px 22px 22px; border-top:1px solid var(--panel-2); background:var(--ink-2); }
+  .attach-btn{ background:var(--panel); border:1px solid var(--panel-2); color:var(--slate); width:42px; height:42px; border-radius:8px; flex-shrink:0; }
+  .attach-btn:hover{ border-color:var(--brass); color:var(--brass-light); }
+  .chat-textarea{ flex:1; background:var(--panel); border:1px solid var(--panel-2); color:var(--paper); border-radius:10px; padding:12px 14px; font-size:14px; resize:none; outline:none; max-height:140px; min-height:42px; }
+  .chat-textarea:focus{ border-color:var(--brass); }
+  .send-btn{ background:var(--brass); color:var(--ink); border:none; font-weight:600; width:42px; height:42px; border-radius:8px; flex-shrink:0; }
+  .send-btn:disabled{ opacity:.4; }
+  .attachment-preview{ display:flex; gap:8px; padding:0 22px; flex-wrap:wrap; }
+  .attach-chip{ background:var(--panel-2); color:var(--slate); font-size:11.5px; padding:6px 10px; border-radius:6px; display:flex; align-items:center; gap:6px; }
+  .attach-chip button{ background:none; border:none; color:var(--danger); font-size:13px; padding:0; }
+
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(10,12,16,0.7); display:flex; align-items:center; justify-content:center; z-index:50; }
+  .modal{ background:var(--panel); border:1px solid var(--panel-2); border-radius:12px; width:420px; max-width:90vw; padding:28px; display:flex; flex-direction:column; gap:16px; box-shadow:0 20px 60px rgba(0,0,0,0.5); position:relative; }
+  .modal-title{ font-family:var(--serif); font-size:19px; margin:0; }
+  .modal-sub{ color:var(--slate); font-size:12.5px; margin:-10px 0 4px; line-height:1.5; }
+  .field-label{ font-size:12px; color:var(--slate); margin-bottom:6px; display:block; }
+  .field-input{ width:100%; background:var(--ink); border:1px solid var(--panel-2); color:var(--paper); padding:10px 12px; border-radius:7px; font-size:13.5px; outline:none; }
+  .field-input:focus{ border-color:var(--brass); }
+  .field-group{ display:flex; flex-direction:column; }
+  .modal-actions{ display:flex; gap:10px; margin-top:6px; }
+  .modal-btn{ flex:1; padding:11px; border-radius:8px; border:none; font-size:13.5px; font-weight:600; }
+  .modal-btn.cancel{ background:var(--panel-2); color:var(--slate); }
+  .modal-btn.save{ background:var(--brass); color:var(--ink); }
+  .close-x{ position:absolute; top:16px; right:16px; background:none; border:none; color:var(--slate); font-size:18px; }
+  .provider-presets{ display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .preset-chip{ background:var(--ink); border:1px solid var(--panel-2); color:var(--slate); font-size:11px; padding:5px 10px; border-radius:20px; }
+  .preset-chip:hover{ border-color:var(--brass); color:var(--brass-light); }
+  .config-warning{ background:rgba(193,102,107,0.12); border:1px solid var(--danger); color:#F0C9CB; font-size:12.5px; padding:14px 16px; border-radius:8px; line-height:1.6; max-width:420px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =====================================================================
+     CLOUD CONFIG — replace this with YOUR Supabase project's URL + anon key.
+     Get it from: Supabase dashboard → your project → Project Settings → API.
+     The anon key is safe to expose in client code — it's meant to be public;
+     Row Level Security policies on the table control what it can actually do.
+     ===================================================================== */
+  const SUPABASE_URL = "https://apmzrwyedvyciycudbol.supabase.co/rest/v1/";
+  const SUPABASE_ANON_KEY = "sb_publishable_vEOOipg2qgiCoTT326Uo2g_foRwH6GD";
+
+  let db = null;
+  let cloudConfigured = false;
+  try{
+    if(SUPABASE_URL !== "REPLACE_ME" && SUPABASE_ANON_KEY !== "REPLACE_ME"){
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      cloudConfigured = true;
+    }
+  }catch(e){ console.error("Supabase init failed", e); cloudConfigured = false; }
+
+  /* ===================== STATE ===================== */
+  function defaultState(){
+    return {
+      classes: [
+        { id:"c1", name:"Class 1", notes:"", chat:[] },
+        { id:"c2", name:"Class 2", notes:"", chat:[] },
+        { id:"c3", name:"Class 3", notes:"", chat:[] },
+        { id:"c4", name:"Class 4", notes:"", chat:[] }
+      ],
+      settings: { apiBase:"", apiKey:"", model:"" }
+    };
+  }
+
+  let state = null;
+  let currentHash = null;
+  let saveTimer = null;
+  let syncStatus = "idle"; // idle | saving | synced | error
+
+  async function sha256Hex(str){
+    const enc = new TextEncoder().encode(str);
+    const buf = await crypto.subtle.digest("SHA-256", enc);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  }
+
+  function queueSave(){
+    if(!currentHash) return;
+    syncStatus = "saving"; updateSyncPill();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async ()=>{
+      try{
+        const { error } = await db.from("study_deck").upsert({ id: currentHash, data: state, updated_at: new Date().toISOString() });
+        if(error) throw error;
+        syncStatus = "synced";
+      }catch(err){
+        console.error("cloud save failed", err);
+        syncStatus = "error";
+      }
+      updateSyncPill();
+    }, 600);
+  }
+  function updateSyncPill(){
+    const dot = document.querySelector(".sync-dot");
+    const label = document.querySelector(".sync-label");
+    if(!dot) return;
+    dot.className = "sync-dot" + (syncStatus==="saving" ? " saving" : syncStatus==="error" ? " error" : "");
+    if(label) label.textContent = syncStatus==="saving" ? "Saving…" : syncStatus==="error" ? "Save failed — retrying" : "Synced";
+  }
+
+  /* ===================== APP NAV STATE ===================== */
+  let view = "entry"; // entry | loading | dashboard | workspace
+  let entryValue = "";
+  let entryError = "";
+  let activeClassId = null;
+  let activeTab = "notes";
+  let settingsOpen = false;
+  let suggestion = null;
+  let asking = false;
+  let sending = false;
+  let pendingAttachments = [];
+
+  const root = document.getElementById("app");
+
+  function el(tag, attrs, ...children){
+    const e = document.createElement(tag);
+    if(attrs) for(const k in attrs){
+      if(k === "class") e.className = attrs[k];
+      else if(k.startsWith("on") && typeof attrs[k] === "function") e.addEventListener(k.slice(2), attrs[k]);
+      else if(k === "html") e.innerHTML = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    }
+    children.flat().forEach(c=>{
+      if(c === null || c === undefined) return;
+      if(typeof c === "string" || typeof c === "number") e.appendChild(document.createTextNode(c));
+      else e.appendChild(c);
+    });
+    return e;
+  }
+
+  function getClass(id){ return state.classes.find(c=>c.id===id); }
+  function apiConfigured(){ return !!(state.settings.apiBase && state.settings.apiKey && state.settings.model); }
+
+  /* ===================== AI API CALL ===================== */
+  async function callAssistant(systemPrompt, messages){
+    if(!apiConfigured()) throw new Error("NO_CONFIG");
+    const body = { model: state.settings.model, messages: [{ role:"system", content: systemPrompt }, ...messages], max_tokens: 1000 };
+    const res = await fetch(state.settings.apiBase.replace(/\/$/,"") + "/chat/completions", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "Authorization": "Bearer " + state.settings.apiKey },
+      body: JSON.stringify(body)
+    });
+    if(!res.ok){ const t = await res.text().catch(()=> ""); throw new Error("API error " + res.status + " " + t.slice(0,200)); }
+    const data = await res.json();
+    const choice = data.choices && data.choices[0];
+    const content = choice && choice.message && choice.message.content;
+    if(!content) throw new Error("Empty response from API");
+    return content;
+  }
+
+  /* ===================== RENDER ===================== */
+  function render(){
+    root.innerHTML = "";
+    if(view === "entry") root.appendChild(renderEntry());
+    else if(view === "loading") root.appendChild(renderLoading());
+    else if(view === "dashboard") root.appendChild(renderShell(renderDashboard()));
+    else if(view === "workspace") root.appendChild(renderShell(renderWorkspace()));
+    if(settingsOpen) root.appendChild(renderSettingsModal());
+  }
+
+  function dialSvg(angle){
+    const ticks = [];
+    for(let i=0;i<24;i++){
+      const a = (i/24) * 2*Math.PI;
+      const major = i % 6 === 0;
+      const r1 = major ? 56 : 61, r2 = 68;
+      const x1 = 75 + r1*Math.sin(a), y1 = 75 - r1*Math.cos(a);
+      const x2 = 75 + r2*Math.sin(a), y2 = 75 - r2*Math.cos(a);
+      ticks.push(`<line class="dial-tick${major?' major':''}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`);
+    }
+    return `<svg class="dial" viewBox="0 0 150 150">
+      <circle class="dial-ring" cx="75" cy="75" r="68" />
+      ${ticks.join("")}
+      <g class="dial-needle" style="transform:rotate(${angle}deg)"><line x1="75" y1="75" x2="75" y2="26" /></g>
+      <circle class="dial-center" cx="75" cy="75" r="5" />
+    </svg>`;
+  }
+
+  /* ---------- ENTRY (single passcode screen — creates or loads a cloud space) ---------- */
+  function renderEntry(){
+    const wrap = el("div",{class:"center-wrap"});
+    if(!cloudConfigured){
+      const card = el("div",{class:"center-card"},
+        el("div",{html: dialSvg(0)}),
+        el("h1",{class:"lock-title"}, "Study Deck"),
+        el("div",{class:"config-warning"}, "Cloud storage isn't set up on this copy of the site yet. Whoever deployed it needs to add a Supabase URL and anon key near the top of the file (look for SUPABASE_URL).")
+      );
+      wrap.appendChild(card);
+      return wrap;
+    }
+    const card = el("div",{class:"center-card"});
+    card.appendChild(el("div",{html: dialSvg(entryValue.length * 12)}));
+    card.appendChild(el("h1",{class:"lock-title"}, "Study Deck"));
+    card.appendChild(el("p",{class:"lock-sub"}, "Enter your passcode. New passcode? It creates your space. Used it before? It loads your data — on any device."));
+    const input = el("input",{
+      class:"passcode-input", type:"password", placeholder:"passcode", value: entryValue,
+      oninput:(e)=>{ entryValue = e.target.value; entryError=""; render(); focusEntry(); },
+      onkeydown:(e)=>{ if(e.key==="Enter") submitEntry(); }
+    });
+    const btn = el("button",{class:"enter-btn", disabled: entryValue.trim().length < 4, onclick: submitEntry}, "Continue");
+    card.append(input, btn, el("div",{class:"lock-error"}, entryError),
+      el("div",{class:"lock-hint"}, "Pick something only you'd guess — this passcode is the only thing standing between anyone and this data. Don't reuse a real password."));
+    wrap.appendChild(card);
+    setTimeout(focusEntry,0);
+    return wrap;
+  }
+  function focusEntry(){ const i = document.querySelector(".passcode-input"); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }
+
+  async function submitEntry(){
+    if(entryValue.trim().length < 4) return;
+    view = "loading"; render();
+    try{
+      const hash = await sha256Hex(entryValue.trim());
+      const { data: row, error: selErr } = await db.from("study_deck").select("data").eq("id", hash).maybeSingle();
+      if(selErr) throw selErr;
+      if(row){
+        state = row.data;
+      } else {
+        state = defaultState();
+        const { error: insErr } = await db.from("study_deck").insert({ id: hash, data: state });
+        if(insErr) throw insErr;
+      }
+      currentHash = hash;
+      entryValue = "";
+      syncStatus = "synced";
+      view = "dashboard";
+    }catch(err){
+      console.error(err);
+      entryError = "Couldn't reach the cloud — check your connection and try again.";
+      view = "entry";
+    }
+    render();
+  }
+
+  function renderLoading(){
+    const wrap = el("div",{class:"center-wrap"});
+    wrap.appendChild(el("div",{class:"center-card"}, el("div",{class:"spinner"}), el("p",{class:"lock-sub"}, "Loading your space…")));
+    return wrap;
+  }
+
+  /* ---------- SHELL ---------- */
+  function renderShell(content){
+    const wrap = el("div",{style:"flex:1;display:flex;flex-direction:column;"});
+    const bar = el("div",{class:"topbar"},
+      el("div",{class:"brand"},
+        el("div",{html: `<svg viewBox="0 0 22 22" width="22" height="22"><circle cx="11" cy="11" r="9" fill="none" stroke="#B8874A" stroke-width="2"/><circle cx="11" cy="11" r="2.2" fill="#B8874A"/></svg>`}),
+        el("span",{class:"brand-name"}, "Study Deck")
+      ),
+      el("div",{class:"topbar-actions"},
+        el("div",{class:"sync-pill"}, el("div",{class:"sync-dot"}), el("span",{class:"sync-label"}, "Synced")),
+        el("button",{class:"icon-btn", title:"Settings", onclick:()=>{ settingsOpen = true; render(); }}, gearIcon()),
+        el("button",{class:"icon-btn", title:"Lock", onclick:()=>{ state=null; currentHash=null; view="entry"; render(); }}, lockIcon())
+      )
+    );
+    wrap.appendChild(bar);
+    wrap.appendChild(content);
+    return wrap;
+  }
+  function gearIcon(){
+    const s = document.createElementNS("http://www.w3.org/2000/svg","svg");
+    s.setAttribute("viewBox","0 0 24 24"); s.setAttribute("width","16"); s.setAttribute("height","16");
+    s.innerHTML = `<path fill="currentColor" d="M12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7zm7.4-2.1c.04-.46.06-.92.06-1.4s-.02-.94-.06-1.4l2.02-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.38.96a7.4 7.4 0 0 0-1.2-.7l-.36-2.54A.5.5 0 0 0 14.5 2h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.44.18-.84.42-1.2.7l-2.38-.96a.5.5 0 0 0-.6.22L3.7 8.24a.5.5 0 0 0 .12.64l2.02 1.58c-.04.46-.06.92-.06 1.4s.02.94.06 1.4L3.82 14.84a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.38.3.6.22l2.38-.96c.36.28.76.52 1.2.7l.36 2.54c.05.24.25.42.5.42h3.84c.25 0 .45-.18.5-.42l.36-2.54c.44-.18.84-.42 1.2-.7l2.38.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64z"/>`;
+    return s;
+  }
+  function lockIcon(){
+    const s = document.createElementNS("http://www.w3.org/2000/svg","svg");
+    s.setAttribute("viewBox","0 0 24 24"); s.setAttribute("width","16"); s.setAttribute("height","16");
+    s.innerHTML = `<path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z"/>`;
+    return s;
+  }
+
+  /* ---------- DASHBOARD ---------- */
+  function renderDashboard(){
+    const wrap = el("div",{class:"dashboard"});
+    wrap.appendChild(el("h1",{class:"dash-heading"}, "Your classes"));
+    wrap.appendChild(el("p",{class:"dash-sub"}, apiConfigured() ? "Click a class to open its notes and chat." : "Click the gear icon above to add your API key before chatting."));
+    const grid = el("div",{class:"class-grid"});
+    state.classes.forEach((c, idx)=>{
+      const nameInput = el("input",{ class:"class-name", value:c.name,
+        onclick:(e)=> e.stopPropagation(),
+        oninput:(e)=>{ c.name = e.target.value; queueSave(); },
+      });
+      const card = el("div",{class:"class-card", onclick:()=>{ activeClassId = c.id; activeTab="notes"; suggestion=null; view="workspace"; render(); }},
+        el("div",{class:"rename-hint"}, "click name to rename"),
+        el("div",{class:"class-index"}, "Class " + (idx+1)),
+        nameInput,
+        el("div",{class:"class-meta"}, c.notes ? (c.notes.length + " chars of notes") : "No notes yet")
+      );
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  /* ---------- WORKSPACE ---------- */
+  function renderWorkspace(){
+    const c = getClass(activeClassId);
+    const wrap = el("div",{class:"workspace"});
+    const header = el("div",{class:"ws-header"},
+      el("button",{class:"back-btn", onclick:()=>{ view="dashboard"; render(); }}, "← Classes"),
+      el("h2",{class:"ws-title"}, c.name),
+      el("div",{class:"tabs"},
+        el("button",{class:"tab-btn"+(activeTab==="notes"?" active":""), onclick:()=>{ activeTab="notes"; render(); }}, "Notes"),
+        el("button",{class:"tab-btn"+(activeTab==="chat"?" active":""), onclick:()=>{ activeTab="chat"; render(); }}, "Chat")
+      )
+    );
+    const body = el("div",{class:"ws-body"});
+    body.appendChild(activeTab === "notes" ? renderNotesTab(c) : renderChatTab(c));
+    wrap.append(header, body);
+    return wrap;
+  }
+
+  /* ---------- NOTES TAB ---------- */
+  function renderNotesTab(c){
+    const pane = el("div",{class:"notes-pane"});
+    const editorWrap = el("div",{class:"notes-editor-wrap"});
+    const toolbar = el("div",{class:"notes-toolbar"},
+      el("span",{class:"notes-status"}, "Synced to the cloud"),
+      el("button",{class:"ask-btn", disabled: asking || !c.notes.trim(), onclick: ()=>askForHelp(c)}, asking ? "Thinking…" : "✎ Ask for help")
+    );
+    const textarea = el("textarea",{ class:"notes-editor", placeholder:"Start typing your notes, essay, or assignment here…",
+      oninput:(e)=>{ c.notes = e.target.value; queueSave();
+        const askBtn = document.querySelector(".ask-btn");
+        if(askBtn) askBtn.disabled = !c.notes.trim();
+      }
+    });
+    textarea.value = c.notes;
+    editorWrap.append(toolbar, textarea);
+
+    const sugPanel = el("div",{class:"suggestion-panel"});
+    if(!apiConfigured()){
+      sugPanel.appendChild(el("div",{class:"empty-suggestion"}, "Add your API key in Settings (gear icon) to get writing help here."));
+    } else if(!suggestion){
+      sugPanel.appendChild(el("div",{class:"empty-suggestion"}, "Write something, then click \"Ask for help\" for suggestions on what's next."));
+    } else {
+      sugPanel.append(
+        el("p",{class:"suggestion-title"}, "Suggestion"),
+        el("div",{class:"suggestion-text"}, suggestion.text),
+        el("div",{class:"suggestion-actions"},
+          el("button",{class:"mini-btn", onclick:()=>{ suggestion=null; render(); }}, "Dismiss"),
+          el("button",{class:"mini-btn primary", onclick:()=>{
+            c.notes = c.notes + (c.notes.endsWith("\n") || !c.notes ? "" : "\n\n") + suggestion.text;
+            queueSave(); suggestion=null; render();
+          }}, "Insert into notes")
+        )
+      );
+    }
+    pane.append(editorWrap, sugPanel);
+    return pane;
+  }
+
+  async function askForHelp(c){
+    if(!apiConfigured()){ settingsOpen = true; render(); return; }
+    asking = true; render();
+    try{
+      const sys = `You are a focused writing/study assistant embedded in a document editor for the student's class "${c.name}". ` +
+        `The student is drafting notes or an assignment. Read their current draft and offer ONE useful suggestion: ` +
+        `either a next paragraph/sentence to continue with, a clarifying question, or a concrete improvement. ` +
+        `Keep it short (under 120 words). Do not rewrite the whole thing — suggest, don't replace.`;
+      const text = await callAssistant(sys, [{ role:"user", content: "Here is my current draft:\n\n" + c.notes }]);
+      suggestion = { text };
+    } catch(err){
+      suggestion = { text: "Couldn't reach the API: " + friendlyError(err) };
+    }
+    asking = false; render();
+  }
+  function friendlyError(err){
+    if(err && err.message === "NO_CONFIG") return "no API key configured yet.";
+    return (err && err.message) ? err.message : "unknown error";
+  }
+
+  /* ---------- CHAT TAB ---------- */
+  function renderChatTab(c){
+    const pane = el("div",{class:"chat-pane"});
+    const messages = el("div",{class:"chat-messages"});
+    if(c.chat.length === 0) messages.appendChild(el("div",{class:"msg system-note"}, "This is the start of your conversation for " + c.name + "."));
+    c.chat.forEach(m=>{
+      const bubble = el("div",{class:"msg " + m.role});
+      bubble.appendChild(el("div",{}, m.content));
+      if(m.image) bubble.appendChild(el("img",{class:"msg-img", src:m.image}));
+      if(m.fileName) bubble.appendChild(el("div",{class:"msg-file"}, "📎 " + m.fileName));
+      messages.appendChild(bubble);
+    });
+    if(sending) messages.appendChild(el("div",{class:"typing"}, "Assistant is typing…"));
+    pane.appendChild(messages);
+    setTimeout(()=>{ messages.scrollTop = messages.scrollHeight; },0);
+
+    if(pendingAttachments.length){
+      const preview = el("div",{class:"attachment-preview"});
+      pendingAttachments.forEach((a,i)=>{
+        preview.appendChild(el("div",{class:"attach-chip"}, (a.type==="image" ? "🖼 " : "📄 ") + a.name,
+          el("button",{onclick:()=>{ pendingAttachments.splice(i,1); render(); }}, "×")));
+      });
+      pane.appendChild(preview);
+    }
+
+    const fileInput = el("input",{type:"file", accept:"image/*,.txt,.md,.csv,.json", style:"display:none", multiple:"true",
+      onchange:(e)=> handleFiles(e.target.files, ()=>render())
+    });
+    const textarea = el("textarea",{class:"chat-textarea", placeholder:"Message your " + c.name + " assistant…", rows:"1"});
+    const sendBtn = el("button",{class:"send-btn", disabled: sending, onclick:()=> sendChat(c, textarea)}, "➤");
+    textarea.addEventListener("keydown",(e)=>{ if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendChat(c, textarea); } });
+
+    const inputRow = el("div",{class:"chat-input-row"},
+      el("button",{class:"attach-btn", title:"Attach file or screenshot", onclick:()=>fileInput.click()}, "📎"),
+      fileInput, textarea, sendBtn
+    );
+    pane.appendChild(inputRow);
+    return pane;
+  }
+
+  function handleFiles(fileList, cb){
+    Array.from(fileList).forEach(file=>{
+      if(file.type.startsWith("image/")){
+        const reader = new FileReader();
+        reader.onload = ()=>{ pendingAttachments.push({type:"image", name:file.name, dataUrl:reader.result}); cb(); };
+        reader.readAsDataURL(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = ()=>{ pendingAttachments.push({type:"text", name:file.name, text:reader.result}); cb(); };
+        reader.readAsText(file);
+      }
+    });
+  }
+
+  async function sendChat(c, textarea){
+    const text = textarea.value.trim();
+    if(!text && pendingAttachments.length === 0) return;
+    if(!apiConfigured()){ settingsOpen = true; render(); return; }
+
+    let fullText = text;
+    let imageForBubble = null;
+    let fileNameForBubble = null;
+    const contentParts = [];
+
+    pendingAttachments.forEach(a=>{
+      if(a.type === "text"){ fullText += (fullText ? "\n\n" : "") + `[Attached file: ${a.name}]\n${a.text}`; fileNameForBubble = a.name; }
+    });
+    if(text || pendingAttachments.some(a=>a.type==="text")) contentParts.push({ type:"text", text: fullText || "(see attached file)" });
+    pendingAttachments.forEach(a=>{ if(a.type === "image"){ contentParts.push({ type:"image_url", image_url:{ url: a.dataUrl } }); imageForBubble = a.dataUrl; } });
+
+    const userMsgContent = contentParts.length > 1 ? contentParts : (fullText || "(image attached)");
+    c.chat.push({ role:"user", content: text || (fileNameForBubble ? "[attached " + fileNameForBubble + "]" : "[image attached]"), image: imageForBubble, fileName: fileNameForBubble });
+    queueSave();
+    textarea.value = ""; pendingAttachments = []; sending = true; render();
+
+    try{
+      const sys = `You are a helpful, encouraging study assistant for the student's class "${c.name}". ` +
+        `Help with homework, explain concepts clearly, review drafts, and read any screenshots or files they send. Be concise and direct.`;
+      const history = c.chat.slice(0,-1).map(m=>({ role: m.role, content: m.content }));
+      const reply = await callAssistant(sys, [...history, { role:"user", content: userMsgContent }]);
+      c.chat.push({ role:"assistant", content: reply });
+    } catch(err){
+      c.chat.push({ role:"assistant", content: "⚠️ Couldn't reach the API: " + friendlyError(err) });
+    }
+    queueSave(); sending = false; render();
+  }
+
+  /* ---------- SETTINGS MODAL ---------- */
+  function renderSettingsModal(){
+    const backdrop = el("div",{class:"modal-backdrop", onclick:(e)=>{ if(e.target===backdrop){ settingsOpen=false; render(); } }});
+    let base = state.settings.apiBase, key = state.settings.apiKey, model = state.settings.model;
+    const baseInput = el("input",{class:"field-input", placeholder:"e.g. https://api.deepseek.com/v1", value:base, oninput:(e)=> base = e.target.value });
+    const keyInput = el("input",{class:"field-input", type:"password", placeholder:"Your API key", value:key, oninput:(e)=> key = e.target.value });
+    const modelInput = el("input",{class:"field-input", placeholder:"e.g. deepseek-chat, gpt-4o-mini", value:model, oninput:(e)=> model = e.target.value });
+    const presets = el("div",{class:"provider-presets"},
+      el("button",{class:"preset-chip", onclick:()=>{ baseInput.value="https://api.deepseek.com/v1"; base=baseInput.value; }}, "DeepSeek"),
+      el("button",{class:"preset-chip", onclick:()=>{ baseInput.value="https://api.openai.com/v1"; base=baseInput.value; }}, "OpenAI"),
+      el("button",{class:"preset-chip", onclick:()=>{ baseInput.value="https://openrouter.ai/api/v1"; base=baseInput.value; }}, "OpenRouter")
+    );
+    const modal = el("div",{class:"modal"},
+      el("button",{class:"close-x", onclick:()=>{ settingsOpen=false; render(); }}, "×"),
+      el("h3",{class:"modal-title"}, "API connection"),
+      el("p",{class:"modal-sub"}, "Works with any OpenAI-compatible API (DeepSeek, OpenAI, OpenRouter, etc). Your key is stored in your cloud space, keyed to your passcode — it isn't public, but it also isn't protected by a real login, so don't reuse a passcode you use elsewhere."),
+      el("div",{class:"field-group"}, el("span",{class:"field-label"},"API base URL"), baseInput, presets),
+      el("div",{class:"field-group"}, el("span",{class:"field-label"},"API key"), keyInput),
+      el("div",{class:"field-group"}, el("span",{class:"field-label"},"Model name"), modelInput),
+      el("div",{class:"modal-actions"},
+        el("button",{class:"modal-btn cancel", onclick:()=>{ settingsOpen=false; render(); }}, "Cancel"),
+        el("button",{class:"modal-btn save", onclick:()=>{
+          state.settings = { apiBase:base.trim(), apiKey:key.trim(), model:model.trim() };
+          queueSave(); settingsOpen=false; render();
+        }}, "Save")
+      )
+    );
+    backdrop.appendChild(modal);
+    return backdrop;
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
