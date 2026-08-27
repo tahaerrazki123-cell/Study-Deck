@@ -151,6 +151,8 @@
 (function(){
   "use strict";
 
+  const REQUIRED_PASSCODE = "apple429strange";
+
   /* =====================================================================
      CLOUD CONFIG — replace this with YOUR Supabase project's URL + anon key.
      Get it from: Supabase dashboard → your project → Project Settings → API.
@@ -327,6 +329,10 @@
 
   async function submitEntry(){
     if(entryValue.trim().length < 4) return;
+    if(entryValue.trim() !== REQUIRED_PASSCODE){
+      entryError = "Incorrect passcode";
+      return;
+    }
     view = "loading"; render();
     try{
       const hash = await sha256Hex(entryValue.trim());
