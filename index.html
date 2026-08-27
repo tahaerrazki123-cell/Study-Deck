@@ -42,10 +42,11 @@
   }
   .passcode-input:focus{ border-color:var(--brass); }
   .enter-btn{ width:100%; background:var(--brass); color:var(--ink); border:none; font-weight:600;
-    padding:13px; border-radius:9px; font-size:14px; }
-  .enter-btn:hover{ background:var(--brass-light); }
+    padding:13px; border-radius:9px; font-size:14px; transition:box-shadow .2s, filter .2s, transform .2s; }
+  .enter-btn:hover{ background:var(--brass-light); box-shadow:0 0 20px rgba(184,135,74,0.6); filter:brightness(1.1); transform:scale(1.03); }
   .enter-btn:disabled{ opacity:.5; }
   .lock-error{ color:var(--danger); font-size:13px; min-height:16px; text-align:center; }
+  .lock-success{ color:var(--signal); font-size:13px; min-height:16px; text-align:center; }
   .lock-hint{ color:var(--slate-dim); font-size:11.5px; text-align:center; line-height:1.5; }
   .spinner{ width:34px; height:34px; border-radius:50%; border:3px solid var(--panel-2); border-top-color:var(--brass); animation:spin 0.8s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
@@ -223,6 +224,8 @@
   let view = "entry"; // entry | loading | dashboard | workspace
   let entryValue = "";
   let entryError = "";
+  let entrySuccess = "";
+  let entryBusy = false;
   let activeClassId = null;
   let activeTab = "notes";
   let settingsOpen = false;
@@ -315,11 +318,11 @@
     card.appendChild(el("p",{class:"lock-sub"}, "Enter your passcode. New passcode? It creates your space. Used it before? It loads your data — on any device."));
     const input = el("input",{
       class:"passcode-input", type:"password", placeholder:"passcode", value: entryValue,
-      oninput:(e)=>{ entryValue = e.target.value; entryError=""; render(); focusEntry(); },
+      oninput:(e)=>{ entryValue = e.target.value; entryError=""; entrySuccess=""; render(); focusEntry(); },
       onkeydown:(e)=>{ if(e.key==="Enter") submitEntry(); }
     });
-    const btn = el("button",{class:"enter-btn", disabled: entryValue.trim().length < 4, onclick: submitEntry}, "Continue");
-    card.append(input, btn, el("div",{class:"lock-error"}, entryError),
+    const btn = el("button",{class:"enter-btn", disabled: entryValue.trim().length < 4 || entryBusy, onclick: submitEntry}, "Continue");
+    card.append(input, btn, el("div",{class: entrySuccess ? "lock-success" : "lock-error"}, entrySuccess || entryError),
       el("div",{class:"lock-hint"}, "Pick something only you'd guess — this passcode is the only thing standing between anyone and this data. Don't reuse a real password."));
     wrap.appendChild(card);
     setTimeout(focusEntry,0);
@@ -330,9 +333,18 @@
   async function submitEntry(){
     if(entryValue.trim().length < 4) return;
     if(entryValue.trim() !== REQUIRED_PASSCODE){
-      entryError = "Incorrect passcode";
+      entryError = "Wrong password";
+      entrySuccess = "";
+      render();
       return;
     }
+    entryError = "";
+    entrySuccess = "Correct! Welcome in";
+    entryBusy = true;
+    render();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    entrySuccess = "";
+    entryBusy = false;
     view = "loading"; render();
     try{
       const hash = await sha256Hex(entryValue.trim());
